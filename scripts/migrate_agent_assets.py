@@ -44,6 +44,61 @@ SKILL_DIRS = [
     ".gemini/skills",
 ]
 
+ASSET_DIRS = {
+    "commands": [
+        ".claude/commands",
+        ".codex/commands",
+        ".pi/commands",
+        ".hermes/commands",
+        ".cursor/commands",
+        ".gemini/commands",
+    ],
+    "subagents": [
+        ".claude/agents",
+        ".claude/subagents",
+        ".codex/agents",
+        ".codex/subagents",
+        ".pi/agents",
+        ".pi/subagents",
+        ".hermes/agents",
+        ".hermes/subagents",
+        ".cursor/agents",
+        ".cursor/subagents",
+        ".gemini/agents",
+        ".gemini/subagents",
+    ],
+    "hooks": [
+        ".claude/hooks",
+        ".codex/hooks",
+        ".pi/hooks",
+        ".hermes/hooks",
+        ".cursor/hooks",
+        ".gemini/hooks",
+    ],
+    "templates": [
+        ".claude/templates",
+        ".codex/templates",
+        ".pi/templates",
+        ".hermes/templates",
+        ".cursor/templates",
+        ".gemini/templates",
+    ],
+    "references": [
+        ".claude/references",
+        ".claude/resources",
+        ".codex/references",
+        ".codex/resources",
+        ".pi/references",
+        ".pi/resources",
+        ".hermes/references",
+        ".hermes/resources",
+        ".cursor/references",
+        ".cursor/resources",
+        ".gemini/references",
+        ".gemini/resources",
+    ],
+}
+
 CANONICAL_SUBDIRS = [
     "skills",
     "commands",
@@ -59,6 +114,7 @@ class RepoPlan:
     root: Path
     instruction_sources: list[Path] = field(default_factory=list)
     skill_sources: list[Path] = field(default_factory=list)
+    asset_sources: dict[str, list[Path]] = field(default_factory=dict)
     actions: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -170,6 +226,12 @@ def collect_plan(root: Path) -> RepoPlan:
                 plan.skill_sources.append(child)
                 plan.warnings.extend(validate_skill(child))
 
+    for target_name, source_dirs in ASSET_DIRS.items():
+        for item in source_dirs:
+            base = root / item
+            if base.is_dir():
+                plan.asset_sources.setdefault(target_name, []).append(base)
+
     has_canonical = (root / "AGENTS.md").exists() or (root / ".agents").exists()
 
     if not (root / "AGENTS.md").exists() and plan.instruction_sources:
@@ -180,7 +242,11 @@ def collect_plan(root: Path) -> RepoPlan:
     if plan.skill_sources:
         plan.actions.append("copy vendor skills into .agents/skills when missing")
 
-    if has_canonical or plan.instruction_sources or plan.skill_sources:
+    for target_name, sources in sorted(plan.asset_sources.items()):
+        if sources:
+            plan.actions.append(f"copy vendor {target_name} into .agents/{target_name} when missing")
+
+    if has_canonical or plan.instruction_sources or plan.skill_sources or plan.asset_sources:
         plan.actions.append("ensure .agents standard subdirectories exist")
     return plan
 
@@ -290,6 +356,24 @@ def copy_skill(source: Path, root: Path, apply: bool) -> str:
     return f"copy {rel(source, root)} -> {rel(target, root)}"
 
 
+def copy_asset_dir(source: Path, root: Path, target_name: str, apply: bool) -> list[str]:
+    actions: list[str] = []
+    target_root = root / ".agents" / target_name
+    for item in sorted(source.rglob("*")):
+        if item.is_dir():
+            continue
+        relative = item.relative_to(source)
+        target = target_root / relative
+        if target.exists():
+            actions.append(f"skip existing {rel(target, root)}")
+            continue
+        if apply:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, target)
+        actions.append(f"copy {rel(item, root)} -> {rel(target, root)}")
+    return actions
+
+
 def write_shims(root: Path, mode: str, apply: bool) -> list[str]:
     actions: list[str] = []
     if mode == "none":
@@ -316,6 +400,7 @@ def apply_plan(plan: RepoPlan, apply: bool, adapter_mode: str) -> None:
     should_touch = bool(
         plan.instruction_sources
         or plan.skill_sources
+        or plan.asset_sources
         or (plan.root / "AGENTS.md").exists()
         or (plan.root / ".agents").exists()
     )
@@ -326,6 +411,9 @@ def apply_plan(plan: RepoPlan, apply: bool, adapter_mode: str) -> None:
     append_missing_agents_sections(plan.root, plan.instruction_sources, apply)
     for source in plan.skill_sources:
         plan.actions.append(copy_skill(source, plan.root, apply))
+    for target_name, sources in sorted(plan.asset_sources.items()):
+        for source in sources:
+            plan.actions.extend(copy_asset_dir(source, plan.root, target_name, apply))
     if (plan.root / "AGENTS.md").exists() or plan.instruction_sources or plan.skill_sources:
         plan.actions.extend(write_shims(plan.root, adapter_mode, apply))
 
@@ -344,6 +432,13 @@ def render_report(plans: Iterable[RepoPlan], applied: bool) -> str:
         lines += [f"- {rel(p, plan.root)}" for p in plan.instruction_sources] or ["- none"]
         lines += ["", "Skill sources:"]
         lines += [f"- {rel(p, plan.root)}" for p in plan.skill_sources] or ["- none"]
+        lines += ["", "Asset sources:"]
+        if plan.asset_sources:
+            for target_name, sources in sorted(plan.asset_sources.items()):
+                for source in sources:
+                    lines.append(f"- {rel(source, plan.root)} -> .agents/{target_name}")
+        else:
+            lines.append("- none")
         lines += ["", "Actions:"]
         lines += [f"- {item}" for item in plan.actions] or ["- none"]
         if plan.warnings:

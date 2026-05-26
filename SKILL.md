@@ -23,7 +23,7 @@ python <skill-dir>\scripts\migrate_agent_assets.py --root <path> --scope repo --
 python <skill-dir>\scripts\migrate_agent_assets.py --root <path> --scope repo --apply --adapter-mode shim
 ```
 
-For a directory of repos, use `--scope tree`. The script treats directories with `.git`, `AGENTS.md`, `CLAUDE.md`, `.agents`, `.claude`, `.codex`, `.pi`, or `.hermes` as candidate roots.
+For a directory of repos, use `--scope tree`. The script treats Git repositories and directories with agent instruction files as candidate roots.
 
 ## Canonical Layout
 
@@ -41,6 +41,14 @@ AGENTS.md
 ```
 
 Only `AGENTS.md` and `.agents/skills/<name>/SKILL.md` are broadly standardized. Treat the other `.agents` subfolders as a house convention for portable source-of-truth assets, with vendor adapters generated as needed.
+
+The migrator copies these vendor asset classes into the canonical tree without rewriting their contents:
+
+- commands -> `.agents/commands`
+- hooks -> `.agents/hooks`
+- agents/subagents -> `.agents/subagents`
+- templates -> `.agents/templates`
+- references/resources -> `.agents/references`
 
 ## AGENTS.md Shape
 
@@ -81,6 +89,10 @@ Prefer shims, symlinks, or generated copies:
 - `.pi`, `.hermes`, `.cursor`, `.gemini`: tool-specific config only unless the tool requires native assets.
 
 If symlinks are risky on Windows or in a repo, use copy mode and mark generated files with a short header pointing back to `.agents`.
+
+## Conflict Policy
+
+Existing canonical files win. The migrator skips a target when the destination already exists and reports the skip. Review those conflicts manually before deleting or overwriting any vendor asset.
 
 ## References
 

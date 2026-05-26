@@ -2,7 +2,7 @@
 
 [![skills.sh](https://skills.sh/b/schrmm/agent-asset-migrator)](https://skills.sh/schrmm/agent-asset-migrator)
 
-Migrate agent-specific instruction files and skills into a canonical `AGENTS.md` and `.agents/` layout.
+Migrate agent-specific instruction files, skills, commands, hooks, subagents, templates, and references into a canonical `AGENTS.md` and `.agents/` layout.
 
 This is a portable Agent Skill for consolidating assets from `CLAUDE.md`, `.claude`, `.codex`, `.pi`, `.hermes`, Cursor, Gemini, and similar agent-specific layouts without deleting the original files.
 
@@ -51,6 +51,6 @@ AGENTS.md
 - Dry-run reports are the default workflow.
 - Existing vendor files are preserved.
 - Existing canonical skills are skipped.
+- Existing canonical commands, hooks, subagents, templates, and references are skipped.
 - Generated adapter files are refreshed only when recognized as generated.
 - Empty `.agents` subdirectories get `.gitkeep` placeholders so Git can track the canonical structure.
-

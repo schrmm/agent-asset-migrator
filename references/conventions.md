@@ -23,6 +23,16 @@ AGENTS.md
   references/
 ```
 
+Asset mapping:
+
+```text
+vendor commands            -> .agents/commands/
+vendor hooks               -> .agents/hooks/
+vendor agents/subagents    -> .agents/subagents/
+vendor templates           -> .agents/templates/
+vendor references/resources -> .agents/references/
+```
+
 Treat vendor directories as adapters:
 
 ```text
@@ -93,7 +103,7 @@ Default to reversible operations:
 
 - Create reports before writes.
 - Preserve source vendor files unless the user asks for cleanup.
+- Copy vendor assets without rewriting their contents on the first pass.
 - Prefer shims for instruction files.
 - Prefer symlinks for skills when supported; otherwise copy with provenance markers.
 - Never silently overwrite non-generated files.
-
