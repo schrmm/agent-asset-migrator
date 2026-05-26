@@ -1,0 +1,12 @@
+[project]
+name = "agent-asset-migrator"
+version = "0.1.0"
+description = "Agent Skill for migrating vendor-specific agent assets into AGENTS.md and .agents."
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 140
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
