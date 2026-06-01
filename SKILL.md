@@ -70,7 +70,7 @@ AGENTS.md is plain Markdown with no required frontmatter. Prefer short, durable 
 - Agent Asset Layout
 - PR Or Commit Guidance
 
-Do not dump every vendor instruction into AGENTS.md. Merge durable project guidance; move reusable workflows into `.agents/skills`; leave model/tool-specific quirks in vendor shims.
+Do not dump every vendor instruction into AGENTS.md. The migrator records vendor source references in AGENTS.md and leaves raw contents in the migration report for review. Merge durable project guidance; move reusable workflows into `.agents/skills`; leave model/tool-specific quirks in vendor shims.
 
 ## Skill Package Shape
 

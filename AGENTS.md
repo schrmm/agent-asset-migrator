@@ -10,6 +10,7 @@ Python tooling follows the global rule: use `uv`, `ruff`, and `pytest`.
 
 ```powershell
 uv run ruff check scripts\migrate_agent_assets.py
+uv run pytest
 uv run python -m py_compile scripts\migrate_agent_assets.py
 npx skills@latest add . --list
 ```

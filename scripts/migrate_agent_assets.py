@@ -15,6 +15,7 @@ import datetime as dt
 import os
 import re
 import shutil
+import sys
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -130,10 +131,9 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def write_text(path: Path, text: str, apply: bool) -> None:
-    if apply:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8", newline="\n")
+def write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def is_generated(path: Path) -> bool:
@@ -234,20 +234,8 @@ def collect_plan(root: Path) -> RepoPlan:
 
     has_canonical = (root / "AGENTS.md").exists() or (root / ".agents").exists()
 
-    if not (root / "AGENTS.md").exists() and plan.instruction_sources:
-        plan.actions.append("create AGENTS.md from vendor instruction sources")
-    elif plan.instruction_sources:
-        plan.actions.append("append missing vendor instruction sections to AGENTS.md")
-
-    if plan.skill_sources:
-        plan.actions.append("copy vendor skills into .agents/skills when missing")
-
-    for target_name, sources in sorted(plan.asset_sources.items()):
-        if sources:
-            plan.actions.append(f"copy vendor {target_name} into .agents/{target_name} when missing")
-
     if has_canonical or plan.instruction_sources or plan.skill_sources or plan.asset_sources:
-        plan.actions.append("ensure .agents standard subdirectories exist")
+        plan.actions = planned_actions(plan, "shim")
     return plan
 
 
@@ -287,77 +275,59 @@ def default_agents_md(root: Path, sources: list[Path]) -> str:
     ]
 
     if sources:
-        chunks += ["## Migrated Vendor Instructions", ""]
+        chunks += ["## Migrated Vendor Instruction Sources", ""]
+        chunks += ["Review the migration report, then fold durable guidance into the sections above.", ""]
         for source in sources:
-            chunks += [
-                f"### {rel(source, root)}",
-                "",
-                f"Migrated on {now}. Review and fold durable guidance into the sections above.",
-                "",
-                "```md",
-                read_text(source).strip(),
-                "```",
-                "",
-            ]
+            chunks.append(f"- `{rel(source, root)}` discovered on {now}")
+        chunks.append("")
 
     return "\n".join(chunks).rstrip() + "\n"
 
 
-def append_missing_agents_sections(root: Path, sources: list[Path], apply: bool) -> None:
+def append_missing_agents_sections(root: Path, sources: list[Path]) -> None:
     target = root / "AGENTS.md"
     existing = read_text(target) if target.exists() else ""
     if not existing:
-        write_text(target, default_agents_md(root, sources), apply)
+        write_text(target, default_agents_md(root, sources))
         return
 
     additions: list[str] = []
     for source in sources:
-        marker = f"### {rel(source, root)}"
+        marker = f"`{rel(source, root)}`"
         if marker in existing:
             continue
-        additions += [
-            "",
-            marker,
-            "",
-            "Review and fold durable guidance into the main AGENTS.md sections.",
-            "",
-            "```md",
-            read_text(source).strip(),
-            "```",
-            "",
-        ]
+        additions.append(f"- {marker}")
 
     if additions:
-        heading = "\n## Migrated Vendor Instructions\n"
-        if "## Migrated Vendor Instructions" not in existing:
+        heading = (
+            "\n## Migrated Vendor Instruction Sources\n\n"
+            "Review the migration report, then fold durable guidance into the main AGENTS.md sections.\n"
+        )
+        if "## Migrated Vendor Instruction Sources" not in existing:
             existing = existing.rstrip() + heading
         existing = existing.rstrip() + "\n" + "\n".join(additions).rstrip() + "\n"
-        write_text(target, existing, apply)
+        write_text(target, existing)
 
 
-def ensure_agent_dirs(root: Path, apply: bool) -> None:
+def ensure_agent_dirs(root: Path) -> None:
     for name in CANONICAL_SUBDIRS:
         path = root / ".agents" / name
-        if apply:
-            path.mkdir(parents=True, exist_ok=True)
-            keep = path / ".gitkeep"
-            if not keep.exists():
-                keep.write_text("", encoding="utf-8")
+        path.mkdir(parents=True, exist_ok=True)
+        keep = path / ".gitkeep"
+        if not keep.exists():
+            keep.write_text("", encoding="utf-8")
 
 
-def copy_skill(source: Path, root: Path, apply: bool) -> str:
+def copy_skill(source: Path, root: Path) -> None:
     target_root = root / ".agents" / "skills"
     target = target_root / slugify(source.name)
     if target.exists():
-        return f"skip existing skill {rel(target, root)}"
-    if apply:
-        target_root.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(source, target)
-    return f"copy {rel(source, root)} -> {rel(target, root)}"
+        return
+    target_root.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, target)
 
 
-def copy_asset_dir(source: Path, root: Path, target_name: str, apply: bool) -> list[str]:
-    actions: list[str] = []
+def copy_asset_dir(source: Path, root: Path, target_name: str) -> None:
     target_root = root / ".agents" / target_name
     for item in sorted(source.rglob("*")):
         if item.is_dir():
@@ -365,57 +335,96 @@ def copy_asset_dir(source: Path, root: Path, target_name: str, apply: bool) -> l
         relative = item.relative_to(source)
         target = target_root / relative
         if target.exists():
-            actions.append(f"skip existing {rel(target, root)}")
             continue
-        if apply:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(item, target)
-        actions.append(f"copy {rel(item, root)} -> {rel(target, root)}")
-    return actions
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(item, target)
 
 
-def write_shims(root: Path, mode: str, apply: bool) -> list[str]:
-    actions: list[str] = []
+def shim_text() -> str:
+    return (
+        f"{GENERATED}\n"
+        "# Claude Adapter\n\n"
+        "Canonical agent instructions live in `AGENTS.md`.\n"
+        "Canonical reusable assets live in `.agents/`.\n"
+        "Keep Claude-only deltas here only when they should not apply to other agents.\n"
+    )
+
+
+def write_shims(root: Path, mode: str) -> None:
     if mode == "none":
-        return actions
+        return
 
     claude = root / "CLAUDE.md"
-    if is_generated(claude):
-        text = (
-            f"{GENERATED}\n"
-            "# Claude Adapter\n\n"
-            "Canonical agent instructions live in `AGENTS.md`.\n"
-            "Canonical reusable assets live in `.agents/`.\n"
-            "Keep Claude-only deltas here only when they should not apply to other agents.\n"
-        )
-        write_text(claude, text, apply)
-        actions.append("refresh generated CLAUDE.md adapter")
-    elif claude.exists():
-        actions.append("preserve existing CLAUDE.md")
-
-    return actions
+    if is_generated(claude) or not claude.exists():
+        write_text(claude, shim_text())
 
 
-def apply_plan(plan: RepoPlan, apply: bool, adapter_mode: str) -> None:
-    should_touch = bool(
+def should_touch(plan: RepoPlan) -> bool:
+    return bool(
         plan.instruction_sources
         or plan.skill_sources
         or plan.asset_sources
         or (plan.root / "AGENTS.md").exists()
         or (plan.root / ".agents").exists()
     )
-    if not should_touch:
-        return
 
-    ensure_agent_dirs(plan.root, apply)
-    append_missing_agents_sections(plan.root, plan.instruction_sources, apply)
+
+def planned_actions(plan: RepoPlan, adapter_mode: str) -> list[str]:
+    if not should_touch(plan):
+        return []
+
+    actions = ["ensure .agents standard subdirectories exist"]
+    agents = plan.root / "AGENTS.md"
+    if not agents.exists() and plan.instruction_sources:
+        actions.append("create AGENTS.md with vendor instruction source references")
+    elif plan.instruction_sources:
+        actions.append("append missing vendor instruction source references to AGENTS.md")
+
     for source in plan.skill_sources:
-        plan.actions.append(copy_skill(source, plan.root, apply))
+        target = plan.root / ".agents" / "skills" / slugify(source.name)
+        if target.exists():
+            actions.append(f"skip existing skill {rel(target, plan.root)}")
+        else:
+            actions.append(f"copy {rel(source, plan.root)} -> {rel(target, plan.root)}")
+
     for target_name, sources in sorted(plan.asset_sources.items()):
         for source in sources:
-            plan.actions.extend(copy_asset_dir(source, plan.root, target_name, apply))
+            target_root = plan.root / ".agents" / target_name
+            for item in sorted(source.rglob("*")):
+                if item.is_dir():
+                    continue
+                target = target_root / item.relative_to(source)
+                if target.exists():
+                    actions.append(f"skip existing {rel(target, plan.root)}")
+                else:
+                    actions.append(f"copy {rel(item, plan.root)} -> {rel(target, plan.root)}")
+
+    if adapter_mode != "none" and (agents.exists() or plan.instruction_sources or plan.skill_sources):
+        claude = plan.root / "CLAUDE.md"
+        if is_generated(claude):
+            actions.append("refresh generated CLAUDE.md adapter")
+        elif claude.exists():
+            actions.append("preserve existing CLAUDE.md")
+        else:
+            actions.append("create generated CLAUDE.md adapter")
+
+    return actions
+
+
+def apply_plan(plan: RepoPlan, apply: bool, adapter_mode: str) -> None:
+    plan.actions = planned_actions(plan, adapter_mode)
+    if not apply or not should_touch(plan):
+        return
+
+    ensure_agent_dirs(plan.root)
+    append_missing_agents_sections(plan.root, plan.instruction_sources)
+    for source in plan.skill_sources:
+        copy_skill(source, plan.root)
+    for target_name, sources in sorted(plan.asset_sources.items()):
+        for source in sources:
+            copy_asset_dir(source, plan.root, target_name)
     if (plan.root / "AGENTS.md").exists() or plan.instruction_sources or plan.skill_sources:
-        plan.actions.extend(write_shims(plan.root, adapter_mode, apply))
+        write_shims(plan.root, adapter_mode)
 
 
 def render_report(plans: Iterable[RepoPlan], applied: bool) -> str:
@@ -461,6 +470,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if not args.root.exists() or not args.root.is_dir():
+        print(f"error: --root must be an existing directory: {args.root}", file=sys.stderr)
+        return 2
     applied = bool(args.apply and not args.dry_run)
     roots = find_repos(args.root, args.scope)
     plans = [collect_plan(root) for root in roots]
@@ -469,7 +481,7 @@ def main() -> int:
 
     report = render_report(plans, applied)
     if args.report:
-        write_text(args.report, report, True)
+        write_text(args.report, report)
     else:
         print(report)
     return 0

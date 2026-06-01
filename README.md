@@ -60,9 +60,10 @@ AGENTS.md
 
 - Dry-run reports are the default workflow.
 - Existing vendor files are preserved.
+- Raw vendor instruction contents stay in the migration report; `AGENTS.md` records source references for human review.
 - Existing canonical skills are skipped.
 - Existing canonical commands, hooks, subagents, templates, and references are skipped.
-- Generated adapter files are refreshed only when recognized as generated.
+- Generated adapter files are created or refreshed only when safe; non-generated adapters are preserved.
 - Empty `.agents` subdirectories get `.gitkeep` placeholders so Git can track the canonical structure.
 
 ## skills.sh Surface
