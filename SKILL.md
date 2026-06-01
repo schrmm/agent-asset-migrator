@@ -10,17 +10,24 @@ description: Consolidate repo or global AI-agent instructions, skills, commands,
 Use a two-pass migration: first inventory and report, then write changes only after reviewing the plan. Preserve original files unless the user explicitly asks to remove them.
 
 1. Find scope: global home, one repo, or a parent directory containing many repos.
-2. Run the migrator in dry-run mode:
+2. Resolve the bundled migrator script from the installed skill. Try these paths in order:
+
+- Project install: `.agents/skills/migrate-agent-assets/scripts/migrate_agent_assets.py`
+- Codex global install: `~/.codex/skills/migrate-agent-assets/scripts/migrate_agent_assets.py`
+- Agent Skills global install: `~/.agents/skills/migrate-agent-assets/scripts/migrate_agent_assets.py`
+- Local checkout: `<repo>/scripts/migrate_agent_assets.py`
+
+3. Run the migrator in dry-run mode:
 
 ```powershell
-python <skill-dir>\scripts\migrate_agent_assets.py --root <path> --scope repo --dry-run --report <path>\agent-migration-report.md
+python <migrator-script> --root <path> --scope repo --dry-run --report <path>\agent-migration-report.md
 ```
 
-3. Read the report. Identify duplicate or conflicting instructions that need human judgment.
-4. Apply only when the plan is coherent:
+4. Read the report. Identify duplicate or conflicting instructions that need human judgment.
+5. Apply only when the plan is coherent:
 
 ```powershell
-python <skill-dir>\scripts\migrate_agent_assets.py --root <path> --scope repo --apply --adapter-mode shim
+python <migrator-script> --root <path> --scope repo --apply --adapter-mode shim
 ```
 
 For a directory of repos, use `--scope tree`. The script treats Git repositories and directories with agent instruction files as candidate roots.
@@ -66,6 +73,8 @@ AGENTS.md is plain Markdown with no required frontmatter. Prefer short, durable 
 Do not dump every vendor instruction into AGENTS.md. Merge durable project guidance; move reusable workflows into `.agents/skills`; leave model/tool-specific quirks in vendor shims.
 
 ## Skill Package Shape
+
+For publishable `skills.sh` packages, a repository may expose either a root-level `SKILL.md` for a single skill or top-level `skills/<skill-name>/SKILL.md` directories for a skill family. Do not put publishable skills under `.agents/skills/` in the source repository; that path is an install target.
 
 Each skill must be:
 

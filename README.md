@@ -9,18 +9,28 @@ This is a portable Agent Skill for consolidating assets from `CLAUDE.md`, `.clau
 ## Install
 
 ```powershell
-npx skills add schrmm/agent-asset-migrator -g
+npx skills@latest add schrmm/agent-asset-migrator --global
 ```
 
 To inspect the skill before installing:
 
 ```powershell
-npx skills add schrmm/agent-asset-migrator --list
+npx skills@latest add schrmm/agent-asset-migrator --list
 ```
 
 ## Usage
 
 The skill runs migrations in two passes: report first, write only after review.
+
+When installed through `skills.sh`, resolve the bundled script from the installed skill directory:
+
+```text
+.agents/skills/migrate-agent-assets/scripts/migrate_agent_assets.py
+~/.codex/skills/migrate-agent-assets/scripts/migrate_agent_assets.py
+~/.agents/skills/migrate-agent-assets/scripts/migrate_agent_assets.py
+```
+
+From a local checkout, run:
 
 ```powershell
 python scripts\migrate_agent_assets.py --root C:\path\to\repo --scope repo --dry-run --report C:\tmp\agent-migration-report.md
@@ -54,3 +64,10 @@ AGENTS.md
 - Existing canonical commands, hooks, subagents, templates, and references are skipped.
 - Generated adapter files are refreshed only when recognized as generated.
 - Empty `.agents` subdirectories get `.gitkeep` placeholders so Git can track the canonical structure.
+
+## skills.sh Surface
+
+- This repository publishes one root-level skill via `SKILL.md`.
+- `scripts/` and `references/` are bundled runtime assets for that skill.
+- `.agents/skills/` is intentionally absent from the source repo because it is an install target.
+- Verify discovery with `npx skills@latest add . --list` before publishing.

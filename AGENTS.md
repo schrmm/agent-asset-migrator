@@ -11,8 +11,22 @@ Python tooling follows the global rule: use `uv`, `ruff`, and `pytest`.
 ```powershell
 uv run ruff check scripts\migrate_agent_assets.py
 uv run python -m py_compile scripts\migrate_agent_assets.py
-npx skills add . --list
+npx skills@latest add . --list
 ```
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live in this repo's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default Matt Pocock skill triage label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repo; read root context docs and ADRs if they exist. See `docs/agents/domain.md`.
 
 ## Agent Asset Layout
 
@@ -22,5 +36,4 @@ The root `SKILL.md` is the installable skill. Do not add a duplicate `.agents/sk
 
 ## Release Notes
 
-After publishing to GitHub, run `npx skills add schrmm/agent-asset-migrator --list` once so skills.sh sees the repository through CLI telemetry.
-
+After publishing to GitHub, run `npx skills@latest add schrmm/agent-asset-migrator --list` once so skills.sh sees the repository through CLI telemetry.
